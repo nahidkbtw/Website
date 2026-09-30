@@ -121,7 +121,7 @@ function getClientIdentifier(req) {
   return `ip_${cfIp || "anonymous"}`;
 }
 
-// ─── Discord OAuth2 Endpoints ────────────────────────────────────────────────
+// ─── Discord OAuth2 Endpoints
 
 // Redirect to Discord OAuth dialog
 app.get("/api/auth/discord/login", (req, res) => {
@@ -249,7 +249,6 @@ app.get("/api/auth/discord/callback", async (req, res) => {
 // Quick dev login (for testing without live Discord secret)
 app.post("/api/auth/dev-login", (req, res) => {
   const { username = "starless" } = req.body;
-  const isHttps = req.secure || req.headers["x-forwarded-proto"] === "https";
   const userProfile = {
     id: "dev_" + Math.random().toString(36).substring(2, 8),
     username,
@@ -260,13 +259,7 @@ app.post("/api/auth/dev-login", (req, res) => {
   };
 
   const sessionToken = Buffer.from(JSON.stringify(userProfile)).toString("base64");
-  res.cookie("crystal_user", sessionToken, {
-    httpOnly: false,
-    secure: isHttps,
-    sameSite: "lax",
-    path: "/",
-    maxAge: 30 * 86400 * 1000,
-  });
+  res.cookie("crystal_user", sessionToken, { httpOnly: false, maxAge: 30 * 86400 * 1000 });
   res.json({ ok: true, user: userProfile, token: sessionToken });
 });
 
@@ -278,7 +271,7 @@ app.get("/api/auth/me", (req, res) => {
 
 // Logout
 app.post("/api/auth/logout", (req, res) => {
-  res.clearCookie("crystal_user", { path: "/" });
+  res.clearCookie("crystal_user");
   res.json({ ok: true });
 });
 
@@ -349,7 +342,7 @@ app.post("/api/clips/upload", upload.single("video"), (req, res) => {
   if (!user) {
     try {
       fs.unlinkSync(req.file.path);
-    } catch (e) {}
+    } catch (e) { }
     return res.status(401).json({
       ok: false,
       error: "Authentication required: Please log in with Discord before uploading clips.",
@@ -518,6 +511,25 @@ app.get("/api/stats", (req, res) => {
   });
 });
 
+// Multer & API JSON Error Handler
+app.use((err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    if (err.code === "LIMIT_FILE_SIZE") {
+      return res.status(400).json({
+        ok: false,
+        error: "File is too large! Maximum video file size is 100MB.",
+      });
+    }
+    return res.status(400).json({ ok: false, error: `Upload error: ${err.message}` });
+  } else if (err) {
+    return res.status(400).json({
+      ok: false,
+      error: err.message || "An unexpected error occurred during upload.",
+    });
+  }
+  next();
+});
+
 // Fallback: serve frontend
 app.get("*", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
@@ -525,9 +537,15 @@ app.get("*", (req, res) => {
 
 // Start Server
 app.listen(PORT, () => {
+  const displayRedirect =
+    process.env.DISCORD_REDIRECT_URI ||
+    (process.env.PUBLIC_DOMAIN
+      ? `${process.env.PUBLIC_DOMAIN}/api/auth/discord/callback`
+      : `http://localhost:${PORT}/api/auth/discord/callback`);
+
   console.log(`\n=================================================`);
   console.log(`  ✦ CRYSTAL CLIPS PLATFORM & API SERVER`);
   console.log(`  URL: http://localhost:${PORT}`);
-  const REDIRECT_URI = process.env.DISCORD_REDIRECT_URI;
+  console.log(`  Discord OAuth Redirect: ${displayRedirect}`);
   console.log(`=================================================\n`);
 });
