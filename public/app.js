@@ -494,7 +494,20 @@ async function handlePublishSubmit(e) {
       body: formData,
     });
 
-    const data = await res.json();
+    let data;
+    const contentType = res.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
+      data = await res.json();
+    } else {
+      const text = await res.text();
+      if (text.includes("<!DOCTYPE") || res.status === 404) {
+        throw new Error(
+          "Upload failed: Backend API not reachable. Make sure the Node.js server (server.js) is running on port 5000!"
+        );
+      }
+      throw new Error(text || `Server error (${res.status})`);
+    }
+
     if (!res.ok || !data.ok) {
       throw new Error(data.error || "Upload failed");
     }
