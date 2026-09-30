@@ -528,6 +528,6 @@ app.listen(PORT, () => {
   console.log(`\n=================================================`);
   console.log(`  ✦ CRYSTAL CLIPS PLATFORM & API SERVER`);
   console.log(`  URL: http://localhost:${PORT}`);
-  console.log(`  Discord OAuth Redirect: ${REDIRECT_URI}`);
+  const REDIRECT_URI = process.env.DISCORD_REDIRECT_URI;
   console.log(`=================================================\n`);
 });
